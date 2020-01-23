@@ -11,13 +11,18 @@ from .dataset.coco import COCO
 from .dataset.pascal import PascalVOC
 from .dataset.kitti import KITTI
 from .dataset.coco_hp import COCOHP
-
+from .dataset.plants import PlantDB
+from .dataset.plants_crop import CropPlantDB
+from .dataset.plants_stem import StemPlantDB
 
 dataset_factory = {
   'coco': COCO,
   'pascal': PascalVOC,
   'kitti': KITTI,
-  'coco_hp': COCOHP
+  'coco_hp': COCOHP,
+  'plant_db': PlantDB,
+  'crop_plant_db': CropPlantDB,
+  'stem_plant_db': StemPlantDB
 }
 
 _sample_factory = {
@@ -32,4 +37,3 @@ def get_dataset(dataset, task):
   class Dataset(dataset_factory[dataset], _sample_factory[task]):
     pass
   return Dataset
-  
