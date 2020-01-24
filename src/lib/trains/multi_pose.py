@@ -26,14 +26,15 @@ class MultiPoseLoss(torch.nn.Module):
 
   def forward(self, outputs, batch):
     opt = self.opt
-    hm_loss, wh_loss, off_loss = 0, 0, 0
-    hp_loss, off_loss, hm_hp_loss, hp_offset_loss = 0, 0, 0, 0
-    for s in range(opt.num_stacks):
+    hm_loss, wh_loss, off_loss = 0, 0, 0 # Object detection
+    hp_loss, hm_hp_loss, hp_offset_loss = 0, 0, 0, 0 # Object's keypoint detections
+
+    for s in range(opt.num_stacks): # 2 for hourglass, 1 for others
       output = outputs[s]
       output['hm'] = _sigmoid(output['hm'])
+
       if opt.hm_hp and not opt.mse_loss:
         output['hm_hp'] = _sigmoid(output['hm_hp'])
-      
       if opt.eval_oracle_hmhp:
         output['hm_hp'] = batch['hm_hp']
       if opt.eval_oracle_hm:
@@ -43,25 +44,27 @@ class MultiPoseLoss(torch.nn.Module):
           output['hps'] = batch['dense_hps']
         else:
           output['hps'] = torch.from_numpy(gen_oracle_map(
-            batch['hps'].detach().cpu().numpy(), 
-            batch['ind'].detach().cpu().numpy(), 
+            batch['hps'].detach().cpu().numpy(),
+            batch['ind'].detach().cpu().numpy(),
             opt.output_res, opt.output_res)).to(opt.device)
       if opt.eval_oracle_hp_offset:
         output['hp_offset'] = torch.from_numpy(gen_oracle_map(
-          batch['hp_offset'].detach().cpu().numpy(), 
-          batch['hp_ind'].detach().cpu().numpy(), 
+          batch['hp_offset'].detach().cpu().numpy(),
+          batch['hp_ind'].detach().cpu().numpy(),
           opt.output_res, opt.output_res)).to(opt.device)
 
-
       hm_loss += self.crit(output['hm'], batch['hm']) / opt.num_stacks
+
       if opt.dense_hp:
         mask_weight = batch['dense_hps_mask'].sum() + 1e-4
-        hp_loss += (self.crit_kp(output['hps'] * batch['dense_hps_mask'], 
-                                 batch['dense_hps'] * batch['dense_hps_mask']) / 
+        hp_loss += (self.crit_kp(output['hps'] * batch['dense_hps_mask'],
+                                 batch['dense_hps'] * batch['dense_hps_mask']) /
                                  mask_weight) / opt.num_stacks
       else:
-        hp_loss += self.crit_kp(output['hps'], batch['hps_mask'], 
+        hp_loss += self.crit_kp(output['hps'], batch['hps_mask'],
                                 batch['ind'], batch['hps']) / opt.num_stacks
+
+      # Normally always > 0
       if opt.wh_weight > 0:
         wh_loss += self.crit_reg(output['wh'], batch['reg_mask'],
                                  batch['ind'], batch['wh']) / opt.num_stacks
@@ -75,21 +78,23 @@ class MultiPoseLoss(torch.nn.Module):
       if opt.hm_hp and opt.hm_hp_weight > 0:
         hm_hp_loss += self.crit_hm_hp(
           output['hm_hp'], batch['hm_hp']) / opt.num_stacks
+
     loss = opt.hm_weight * hm_loss + opt.wh_weight * wh_loss + \
            opt.off_weight * off_loss + opt.hp_weight * hp_loss + \
            opt.hm_hp_weight * hm_hp_loss + opt.off_weight * hp_offset_loss
-    
-    loss_stats = {'loss': loss, 'hm_loss': hm_loss, 'hp_loss': hp_loss, 
+
+    loss_stats = {'loss': loss, 'hm_loss': hm_loss, 'hp_loss': hp_loss,
                   'hm_hp_loss': hm_hp_loss, 'hp_offset_loss': hp_offset_loss,
                   'wh_loss': wh_loss, 'off_loss': off_loss}
+
     return loss, loss_stats
 
 class MultiPoseTrainer(BaseTrainer):
   def __init__(self, opt, model, optimizer=None):
     super(MultiPoseTrainer, self).__init__(opt, model, optimizer=optimizer)
-  
+
   def _get_losses(self, opt):
-    loss_states = ['loss', 'hm_loss', 'hp_loss', 'hm_hp_loss', 
+    loss_states = ['loss', 'hm_loss', 'hp_loss', 'hm_hp_loss',
                    'hp_offset_loss', 'wh_loss', 'off_loss']
     loss = MultiPoseLoss(opt)
     return loss_states, loss
@@ -100,7 +105,7 @@ class MultiPoseTrainer(BaseTrainer):
     hm_hp = output['hm_hp'] if opt.hm_hp else None
     hp_offset = output['hp_offset'] if opt.reg_hp_offset else None
     dets = multi_pose_decode(
-      output['hm'], output['wh'], output['hps'], 
+      output['hm'], output['wh'], output['hps'],
       reg=reg, hm_hp=hm_hp, hp_offset=hp_offset, K=opt.K)
     dets = dets.detach().cpu().numpy().reshape(1, -1, dets.shape[2])
 
@@ -150,10 +155,10 @@ class MultiPoseTrainer(BaseTrainer):
     hm_hp = output['hm_hp'] if self.opt.hm_hp else None
     hp_offset = output['hp_offset'] if self.opt.reg_hp_offset else None
     dets = multi_pose_decode(
-      output['hm'], output['wh'], output['hps'], 
+      output['hm'], output['wh'], output['hps'],
       reg=reg, hm_hp=hm_hp, hp_offset=hp_offset, K=self.opt.K)
     dets = dets.detach().cpu().numpy().reshape(1, -1, dets.shape[2])
-    
+
     dets_out = multi_pose_post_process(
       dets.copy(), batch['meta']['c'].cpu().numpy(),
       batch['meta']['s'].cpu().numpy(),

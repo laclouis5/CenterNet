@@ -37,22 +37,23 @@ class CtdetLoss(torch.nn.Module):
         output['hm'] = batch['hm']
       if opt.eval_oracle_wh:
         output['wh'] = torch.from_numpy(gen_oracle_map(
-          batch['wh'].detach().cpu().numpy(), 
-          batch['ind'].detach().cpu().numpy(), 
+          batch['wh'].detach().cpu().numpy(),
+          batch['ind'].detach().cpu().numpy(),
           output['wh'].shape[3], output['wh'].shape[2])).to(opt.device)
       if opt.eval_oracle_offset:
         output['reg'] = torch.from_numpy(gen_oracle_map(
-          batch['reg'].detach().cpu().numpy(), 
-          batch['ind'].detach().cpu().numpy(), 
+          batch['reg'].detach().cpu().numpy(),
+          batch['ind'].detach().cpu().numpy(),
           output['reg'].shape[3], output['reg'].shape[2])).to(opt.device)
 
       hm_loss += self.crit(output['hm'], batch['hm']) / opt.num_stacks
+      
       if opt.wh_weight > 0:
         if opt.dense_wh:
           mask_weight = batch['dense_wh_mask'].sum() + 1e-4
           wh_loss += (
             self.crit_wh(output['wh'] * batch['dense_wh_mask'],
-            batch['dense_wh'] * batch['dense_wh_mask']) / 
+            batch['dense_wh'] * batch['dense_wh_mask']) /
             mask_weight) / opt.num_stacks
         elif opt.cat_spec_wh:
           wh_loss += self.crit_wh(
@@ -62,11 +63,11 @@ class CtdetLoss(torch.nn.Module):
           wh_loss += self.crit_reg(
             output['wh'], batch['reg_mask'],
             batch['ind'], batch['wh']) / opt.num_stacks
-      
+
       if opt.reg_offset and opt.off_weight > 0:
         off_loss += self.crit_reg(output['reg'], batch['reg_mask'],
                              batch['ind'], batch['reg']) / opt.num_stacks
-        
+
     loss = opt.hm_weight * hm_loss + opt.wh_weight * wh_loss + \
            opt.off_weight * off_loss
     loss_stats = {'loss': loss, 'hm_loss': hm_loss,
@@ -76,7 +77,7 @@ class CtdetLoss(torch.nn.Module):
 class CtdetTrainer(BaseTrainer):
   def __init__(self, opt, model, optimizer=None):
     super(CtdetTrainer, self).__init__(opt, model, optimizer=optimizer)
-  
+
   def _get_losses(self, opt):
     loss_states = ['loss', 'hm_loss', 'wh_loss', 'off_loss']
     loss = CtdetLoss(opt)
@@ -92,6 +93,7 @@ class CtdetTrainer(BaseTrainer):
     dets[:, :, :4] *= opt.down_ratio
     dets_gt = batch['meta']['gt_det'].numpy().reshape(1, -1, dets.shape[2])
     dets_gt[:, :, :4] *= opt.down_ratio
+
     for i in range(1):
       debugger = Debugger(
         dataset=opt.dataset, ipynb=(opt.debug==3), theme=opt.debugger_theme)
@@ -103,12 +105,14 @@ class CtdetTrainer(BaseTrainer):
       debugger.add_blend_img(img, pred, 'pred_hm')
       debugger.add_blend_img(img, gt, 'gt_hm')
       debugger.add_img(img, img_id='out_pred')
+
       for k in range(len(dets[i])):
         if dets[i, k, 4] > opt.center_thresh:
           debugger.add_coco_bbox(dets[i, k, :4], dets[i, k, -1],
                                  dets[i, k, 4], img_id='out_pred')
 
       debugger.add_img(img, img_id='out_gt')
+
       for k in range(len(dets_gt[i])):
         if dets_gt[i, k, 4] > opt.center_thresh:
           debugger.add_coco_bbox(dets_gt[i, k, :4], dets_gt[i, k, -1],

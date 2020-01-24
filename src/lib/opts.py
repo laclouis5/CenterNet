@@ -186,6 +186,8 @@ class opts(object):
                              help='category specific bounding box size.')
     self.parser.add_argument('--not_reg_offset', action='store_true',
                              help='not regress local offset.')
+    # Add option --not_reg_hw to only regress heatmaps
+
     # exdet
     self.parser.add_argument('--agnostic_ex', action='store_true',
                              help='use category agnostic extreme points.')
