@@ -8,7 +8,6 @@ from progress.bar import Bar
 from models.data_parallel import DataParallel
 from utils.utils import AverageMeter
 
-
 class ModelWithLoss(torch.nn.Module):
   def __init__(self, model, loss):
     super(ModelWithLoss, self).__init__()
