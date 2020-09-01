@@ -102,6 +102,8 @@ def _reg_loss(regr, gt_regr, mask):
       mask (batch x max_objects)
   '''
   num = mask.float().sum()
+
+  # (B, K) to (B, K, dim)
   mask = mask.unsqueeze(2).expand_as(gt_regr).float()
 
   regr = regr * mask
@@ -132,6 +134,7 @@ class RegLoss(nn.Module):
     super(RegLoss, self).__init__()
 
   def forward(self, output, mask, ind, target):
+    # (B, C, H, W) to (B, K, C)
     pred = _transpose_and_gather_feat(output, ind)
     loss = _reg_loss(pred, target, mask)
     return loss
@@ -141,10 +144,19 @@ class RegL1Loss(nn.Module):
     super(RegL1Loss, self).__init__()
 
   def forward(self, output, mask, ind, target):
+    # output: (B, 2, H, W)
+    # target: (B, K, 2)
+    # ind: (B, K)
+    # mask: (B, K)
+
+    # (B, 2, H, W) to (B, K, 2)
     pred = _transpose_and_gather_feat(output, ind)
+
+    # (B, K) to (B, K, 2)
     mask = mask.unsqueeze(2).expand_as(pred).float()
-    # loss = F.l1_loss(pred * mask, target * mask, reduction='elementwise_mean')
+    # Equivalent to l1_loss(preds * mask, target * mask, reduction="sum")
     loss = F.l1_loss(pred * mask, target * mask, size_average=False)
+
     loss = loss / (mask.sum() + 1e-4)
     return loss
 
@@ -153,6 +165,7 @@ class NormRegL1Loss(nn.Module):
     super(NormRegL1Loss, self).__init__()
 
   def forward(self, output, mask, ind, target):
+    # target: (B, K, 2)
     # (B, 2, H, W) to (B, K, 2)
     pred = _transpose_and_gather_feat(output, ind)
     mask = mask.unsqueeze(2).expand_as(pred).float()

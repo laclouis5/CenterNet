@@ -519,8 +519,7 @@ def ctdet_decode(heat, wh, reg=None, cat_spec_wh=False, K=100):
 
     return detections
 
-def multi_pose_decode(
-    heat, wh, kps, reg=None, hm_hp=None, hp_offset=None, K=100):
+def multi_pose_decode(heat, wh, kps, reg=None, hm_hp=None, hp_offset=None, K=100):
   batch, cat, height, width = heat.size()
   num_joints = kps.shape[1] // 2
   # heat = torch.sigmoid(heat)
@@ -530,25 +529,32 @@ def multi_pose_decode(
 
   kps = _transpose_and_gather_feat(kps, inds)
   kps = kps.view(batch, K, num_joints * 2)
+
   kps[..., ::2] += xs.view(batch, K, 1).expand(batch, K, num_joints)
   kps[..., 1::2] += ys.view(batch, K, 1).expand(batch, K, num_joints)
+
   if reg is not None:
     reg = _transpose_and_gather_feat(reg, inds)
     reg = reg.view(batch, K, 2)
     xs = xs.view(batch, K, 1) + reg[:, :, 0:1]
     ys = ys.view(batch, K, 1) + reg[:, :, 1:2]
+
   else:
     xs = xs.view(batch, K, 1) + 0.5
     ys = ys.view(batch, K, 1) + 0.5
+
   wh = _transpose_and_gather_feat(wh, inds)
   wh = wh.view(batch, K, 2)
+
   clses  = clses.view(batch, K, 1).float()
   scores = scores.view(batch, K, 1)
 
-  bboxes = torch.cat([xs - wh[..., 0:1] / 2,
-                      ys - wh[..., 1:2] / 2,
-                      xs + wh[..., 0:1] / 2,
-                      ys + wh[..., 1:2] / 2], dim=2)
+  bboxes = torch.cat([
+      xs - wh[..., 0:1] / 2,
+      ys - wh[..., 1:2] / 2,
+      xs + wh[..., 0:1] / 2,
+      ys + wh[..., 1:2] / 2], dim=2)
+
   if hm_hp is not None:
       hm_hp = _nms(hm_hp)
       thresh = 0.1
@@ -556,12 +562,15 @@ def multi_pose_decode(
           0, 2, 1, 3).contiguous() # b x J x K x 2
       reg_kps = kps.unsqueeze(3).expand(batch, num_joints, K, K, 2)
       hm_score, hm_inds, hm_ys, hm_xs = _topk_channel(hm_hp, K=K) # b x J x K
+
       if hp_offset is not None:
           hp_offset = _transpose_and_gather_feat(
               hp_offset, hm_inds.view(batch, -1))
           hp_offset = hp_offset.view(batch, num_joints, K, 2)
+
           hm_xs = hm_xs + hp_offset[:, :, :, 0]
           hm_ys = hm_ys + hp_offset[:, :, :, 1]
+
       else:
           hm_xs = hm_xs + 0.5
           hm_ys = hm_ys + 0.5
