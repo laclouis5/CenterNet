@@ -581,7 +581,7 @@ def multi_pose_decode(heat, wh, kps, reg=None, hm_hp=None, hp_offset=None, K=100
       hm_xs = (1 - mask) * (-10000) + mask * hm_xs
       hm_kps = torch.stack([hm_xs, hm_ys], dim=-1).unsqueeze(
           2).expand(batch, num_joints, K, K, 2)
-      dist = (((reg_kps - hm_kps) ** 2).sum(dim=4) ** 0.5)
+      dist = (((reg_kps - hm_kps) ** 2).sum(dim=4) ** 0.5)  # maybe useless square root, is monotone?
       min_dist, min_ind = dist.min(dim=3) # b x J x K
       hm_score = hm_score.gather(2, min_ind).unsqueeze(-1) # b x J x K x 1
       min_dist = min_dist.unsqueeze(-1)
